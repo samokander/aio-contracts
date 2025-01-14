@@ -17,11 +17,7 @@ interface IERC20 {
      * @dev Emitted when the allowance of a `spender` for an `owner` is set by
      * a call to {approve}. `value` is the new allowance.
      */
-    event Approval(
-        address indexed owner,
-        address indexed spender,
-        uint256 value
-    );
+    event Approval(address indexed owner, address indexed spender, uint256 value);
 
     /**
      * @dev Returns the amount of tokens in existence.
@@ -49,10 +45,7 @@ interface IERC20 {
      *
      * This value changes when {approve} or {transferFrom} are called.
      */
-    function allowance(
-        address owner,
-        address spender
-    ) external view returns (uint256);
+    function allowance(address owner, address spender) external view returns (uint256);
 
     /**
      * @dev Sets `amount` as the allowance of `spender` over the caller's tokens.
@@ -79,11 +72,7 @@ interface IERC20 {
      *
      * Emits a {Transfer} event.
      */
-    function transferFrom(
-        address from,
-        address to,
-        uint256 amount
-    ) external returns (bool);
+    function transferFrom(address from, address to, uint256 amount) external returns (bool);
 }
 
 interface IERC20Metadata is IERC20 {
@@ -134,10 +123,7 @@ abstract contract Context {
 abstract contract Ownable is Context {
     address private _owner;
 
-    event OwnershipTransferred(
-        address indexed previousOwner,
-        address indexed newOwner
-    );
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     /**
      * @dev Initializes the contract setting the deployer as the initial owner.
@@ -184,10 +170,7 @@ abstract contract Ownable is Context {
      * Can only be called by the current owner.
      */
     function transferOwnership(address newOwner) public virtual onlyOwner {
-        require(
-            newOwner != address(0),
-            "Ownable: new owner is the zero address"
-        );
+        require(newOwner != address(0), "Ownable: new owner is the zero address");
         _transferOwnership(newOwner);
     }
 
@@ -205,7 +188,7 @@ abstract contract Ownable is Context {
 /**
  * @title AIO-Presale contract
  * @author 4ndrei
- * @dev Contract for holding the ERC20 (BEP20) token presale.
+ * @dev Contract for holding the ERC20 (BEP20) token presale with vestings, cliffs and referral system.
  * @notice Presale constants are instanciated in the constructor and are immutable.
  */
 contract Presale is Ownable {
@@ -237,17 +220,10 @@ contract Presale is Ownable {
      * @param tokensBought Amount of tokens bought
      * @param amountPaid Amount of native currency provided
      */
-    event Purchase(
-        address indexed user,
-        uint256 tokensBought,
-        uint256 amountPaid
-    );
+    event Purchase(address indexed user, uint256 tokensBought, uint256 amountPaid);
 
     modifier checkSale() {
-        require(
-            block.timestamp >= START_TIME && block.timestamp <= endTime,
-            "Presale: Presale is not active"
-        );
+        require(block.timestamp >= START_TIME && block.timestamp <= endTime, "Presale: Presale is not active");
         _;
     }
 
@@ -259,13 +235,9 @@ contract Presale is Ownable {
      * @param _presalePeriod Presale period in days
      * @param _price Presale single token price in native wei
      */
-    constructor(
-        address _token,
-        uint256 _supply,
-        uint256 _startTimestamp,
-        uint256 _presalePeriod,
-        uint256 _price
-    ) Ownable() {
+    constructor(address _token, uint256 _supply, uint256 _startTimestamp, uint256 _presalePeriod, uint256 _price)
+        Ownable()
+    {
         TOKEN = _token;
         START_TIME = _startTimestamp;
         endTime = _startTimestamp + _presalePeriod * 1 days;
@@ -293,10 +265,7 @@ contract Presale is Ownable {
         uint256 amount = claimableAmount(msg.sender);
         require(amount > 0, "Claim: no tokens to claim");
 
-        require(
-            amount <= tokenBalance(),
-            "Claim: Not enough tokens in the contract"
-        );
+        require(amount <= tokenBalance(), "Claim: Not enough tokens in the contract");
 
         userVesting[msg.sender].claimedAmount += amount;
 
@@ -307,18 +276,12 @@ contract Presale is Ownable {
      * @dev sends all native balance on contract to owner
      */
     function withdraw() external onlyOwner {
-        require(
-            block.timestamp > endTime,
-            "Presale: Presale has not ended yet"
-        );
+        require(block.timestamp > endTime, "Presale: Presale has not ended yet");
         payable(owner()).transfer(address(this).balance);
     }
 
     function endPresale() external onlyOwner {
-        require(
-            block.timestamp >= START_TIME,
-            "Presale: Presale has not ended yet"
-        );
+        require(block.timestamp >= START_TIME, "Presale: Presale has not ended yet");
 
         endTime = block.timestamp;
     }
@@ -348,8 +311,9 @@ contract Presale is Ownable {
             userVesting[msg.sender].totalAmount += tokenAmount;
             amountLeft -= tokenAmount;
 
-            if (msg.value > nativeForTokens)
+            if (msg.value > nativeForTokens) {
                 payable(msg.sender).transfer(msg.value - nativeForTokens);
+            }
         }
 
         emit Purchase(msg.sender, tokenAmount, nativeForTokens);
@@ -359,22 +323,21 @@ contract Presale is Ownable {
      * @param user User address that is checked for claimable amount
      * @return amountToClaim The amount of tokens to claim
      */
-    function claimableAmount(
-        address user
-    ) public view returns (uint256 amountToClaim) {
+    function claimableAmount(address user) public view returns (uint256 amountToClaim) {
         if (block.timestamp < endTime) return 0;
 
         uint256 noOfMonthPassed = (block.timestamp - endTime) / MONTH;
 
         Vesting memory vestingData = userVesting[user];
 
-        uint256 amount = (vestingData.totalAmount *
-            (CLIFF_VESTING_SHARE + noOfMonthPassed * MONTHLY_VESTING_SHARE)) /
-            HUNDRED_PERCENTS;
+        uint256 amount = (vestingData.totalAmount * (CLIFF_VESTING_SHARE + noOfMonthPassed * MONTHLY_VESTING_SHARE))
+            / HUNDRED_PERCENTS;
 
-        if (amount > vestingData.totalAmount)
+        if (amount > vestingData.totalAmount) {
             amountToClaim = vestingData.totalAmount - vestingData.claimedAmount;
-        else amountToClaim = amount - vestingData.claimedAmount;
+        } else {
+            amountToClaim = amount - vestingData.claimedAmount;
+        }
     }
 
     /**
